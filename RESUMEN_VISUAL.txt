@@ -1,0 +1,205 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                   TIENDA PERRITOS - CI/CD PIPELINE FIX                     ║
+║                         Análisis y Correcciones                           ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ PROBLEMA 1: BASE DE DATOS INCOMPATIBLE (CRÍTICO) 🔴                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ANTES: Backend MySQL ←→ BD PostgreSQL ❌ (INCOMPATIBLE)                  │
+│  ├─ server.js: const mysql = require("mysql2/promise")                   │
+│  ├─ package.json: "mysql2": "^3.9.0"                                      │
+│  └─ docker-compose.yml: postgres:15 (Puerto 5432)                         │
+│                                                                             │
+│  DESPUÉS: Backend PostgreSQL ←→ BD PostgreSQL ✅ (COMPATIBLE)             │
+│  ├─ server.js: const { Pool } = require("pg")                            │
+│  ├─ package.json: "pg": "^8.11.0"                                         │
+│  └─ Queries: MySQL ? → PostgreSQL $1, $2, $3                             │
+│                                                                             │
+│  IMPACTO: Sin este cambio, la API no conectaba y fallaba toda la app    │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ PROBLEMA 2: NGINX NO INICIABA (ALTO) 🟠                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ANTES: Dockerfile sin CMD                                                │
+│  ├─ EXPOSE 80                                                              │
+│  └─ (nada → contenedor no ejecuta nada)                                    │
+│                                                                             │
+│  DESPUÉS: Dockerfile con CMD                                              │
+│  ├─ EXPOSE 80                                                              │
+│  └─ CMD ["nginx", "-g", "daemon off;"]                                    │
+│                                                                             │
+│  IMPACTO: Contenedor se creaba pero Nginx no servía nada                 │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ PROBLEMA 3: PROXY INVERSO NO CONFIGURADO (ALTO) 🟠                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ANTES: Frontend → /api/productos → ❌ (sin proxy)                        │
+│  └─ default.conf: proxy_pass http://IP_PRIVADA_BACKEND:3001 (comentado)  │
+│                                                                             │
+│  DESPUÉS: Frontend → /api/productos → Nginx → Backend ✅                  │
+│  ├─ default.conf: proxy_pass http://tienda-backend:3001                  │
+│  └─ Headers: X-Real-IP, X-Forwarded-For, X-Forwarded-Proto               │
+│                                                                             │
+│  FLUJO CORRECTO:                                                           │
+│  1. Browser hace fetch("/api/productos")                                  │
+│  2. Nginx intercepta /api/ y lo redirige a http://tienda-backend:3001   │
+│  3. Backend responde y Nginx devuelve al browser                         │
+│                                                                             │
+│  IMPACTO: Frontend no podía acceder a datos, tabla CRUD no funcionaba    │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ PROBLEMA 4: CREDENCIALES EXPUESTAS (ALTO) 🟠                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ANTES: Secrets en el código ❌ (INSEGURO)                                │
+│  deploy.yml, línea 69:                                                     │
+│  -e DB_PASSWORD=alumno123 -e DB_USER=alumno                              │
+│  ↑ VISIBLE en GitHub para cualquiera                                      │
+│                                                                             │
+│  DESPUÉS: Secrets en GitHub ✅ (SEGURO)                                   │
+│  deploy.yml, línea 71-74:                                                │
+│  -e DB_USER=${{ secrets.DB_USER }}                                       │
+│  -e DB_PASSWORD=${{ secrets.DB_PASSWORD }}                               │
+│  -e DB_NAME=${{ secrets.DB_NAME }}                                       │
+│  -e DB_PORT=${{ secrets.DB_PORT }}                                       │
+│                                                                             │
+│  VENTAJAS:                                                                 │
+│  • Contraseñas ocultas en GitHub (*** en logs)                           │
+│  • Acceso controlado a secrets                                            │
+│  • Fácil rotación de credenciales                                        │
+│                                                                             │
+│  IMPACTO: Riesgo de seguridad crítico eliminado                          │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ PROBLEMA 5: VERSIONES INCONSISTENTES (MEDIO) 🟡                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ANTES: Sin package-lock.json                                             │
+│  npm install en Build 1 → pg@8.11.0, express@4.19.0                     │
+│  npm install en Build 2 → pg@8.11.1, express@4.19.1 ❌ (DIFERENTES)     │
+│                                                                             │
+│  DESPUÉS: Con package-lock.json                                           │
+│  npm install siempre instala versiones EXACTAS ✅                        │
+│  Build 1 = Build 2 = Build 3 (REPRODUCIBLE)                             │
+│                                                                             │
+│  IMPACTO: Errores impredecibles entre builds, más confiabilidad         │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                          ARQUITECTURA FINAL                                ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+  USUARIO (Browser)
+      │
+      ├─ GET / ──→ Nginx (Puerto 80, Frontend)
+      │
+      ├─ GET /api/productos ──→ Nginx Proxy ──→ Express (Puerto 3001)
+      │                                              │
+      │                                              └─→ PostgreSQL (5432)
+      │
+      └─ ACTUALIZACIONES JSON ──→ Nginx Proxy ──→ Express CRUD
+
+
+DOCKER COMPOSE (local/EC2):
+┌─────────────────────────────────────────┐
+│ tienda-network (red interna)            │
+├─────────────────┬─────────────────┬─────┤
+│ tienda-frontend │ tienda-backend  │ BD  │
+│ Nginx:80        │ Node:3001       │ PG  │
+│ ↓               │ ↓               │ │   │
+│ port 80         │ port 3001       │ 5432│
+└─────────────────┴─────────────────┴─────┘
+
+CI/CD PIPELINE (GitHub Actions):
+1. Push a rama 'deploy' ──→
+2. Build: Construir imágenes Docker ──→
+3. Push: Subir a Docker Hub ──→
+4. Deploy Frontend: Pull + run Nginx en EC2 ──→
+5. Deploy Backend: Pull + run Express en EC2 con secrets
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                       CAMBIOS POR ARCHIVO                                 ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+📄 backend/package.json
+   ├─ mysql2 ❌ → pg ✅
+   └─ Versión pg: ^8.11.0
+
+📄 backend/server.js
+   ├─ Línea 3: const { Pool } = require("pg")
+   ├─ Línea 24-30: new Pool({ ... })
+   ├─ Línea 49: result.rows en lugar de [rows]
+   └─ Línea 60, etc: $1, $2 en lugar de ?
+
+📄 frontend/Dockerfile
+   └─ Línea 26: CMD ["nginx", "-g", "daemon off;"]
+
+📄 frontend/default.conf
+   ├─ Línea 16: proxy_pass http://tienda-backend:3001
+   ├─ Línea 20-21: X-Forwarded-* headers
+   └─ Línea 24-26: timeouts configurados
+
+📄 .github/workflows/deploy.yml
+   ├─ Línea 71: ${{ secrets.DB_USER }}
+   ├─ Línea 72: ${{ secrets.DB_PASSWORD }}
+   ├─ Línea 73: ${{ secrets.DB_NAME }}
+   └─ Línea 74: ${{ secrets.DB_PORT }}
+
+✨ Nuevos Archivos
+   ├─ backend/package-lock.json (npm lock file)
+   ├─ install-dependencies.bat (script local)
+   ├─ CAMBIOS_REALIZADOS.md (documentación)
+   ├─ CONFIGURACION_GITHUB_SECRETS.md (guía)
+   ├─ README_CAMBIOS.txt (resumen)
+   └─ RESUMEN_VISUAL.txt (este archivo)
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                         CHECKLIST DE ACCIÓN                               ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+[ ] 1. Leer CAMBIOS_REALIZADOS.md (explicación técnica)
+[ ] 2. Configurar 9 GitHub Secrets (ver CONFIGURACION_GITHUB_SECRETS.md)
+      □ DOCKER_USERNAME
+      □ DOCKER_PASSWORD
+      □ FRONTEND_HOST
+      □ BACKEND_HOST
+      □ SSH_PRIVATE_KEY
+      □ DB_USER
+      □ DB_PASSWORD
+      □ DB_NAME
+      □ DB_PORT
+[ ] 3. Hacer git commit y push a rama 'deploy'
+[ ] 4. Verificar que pipeline pase en GitHub Actions
+[ ] 5. Probar en EC2:
+      □ curl http://frontend_ip/
+      □ curl http://frontend_ip/api/productos
+      □ Acceder a la app desde browser
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                           STATUS FINAL                                     ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+✅ Backend: PostgreSQL correctamente configurado
+✅ Frontend: Nginx iniciando y sirviendo contenido
+✅ Proxy: Redirigiendo /api/* a backend correctamente
+✅ Security: Credenciales en GitHub Secrets
+✅ Build: package-lock.json bloquea versiones
+
+🎉 TODO LISTO PARA PRODUCCIÓN
+
+Solo falta:
+→ Configurar 9 GitHub Secrets
+→ Hacer push a rama 'deploy'

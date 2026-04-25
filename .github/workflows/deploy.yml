@@ -59,11 +59,17 @@ jobs:
         with:
           host: ${{ secrets.BACKEND_HOST }}
           username: ec2-user
-          key: ${{ secrets.SSH_PRIVATE_KEY }}       # <--- Esta es la llave del Backend
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           proxy_host: ${{ secrets.FRONTEND_HOST }}
           proxy_username: ec2-user
-          proxy_key: ${{ secrets.SSH_PRIVATE_KEY }} # <--- Esta es la llave del Frontend
+          proxy_key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             sudo docker pull ${{ secrets.DOCKER_USERNAME }}/tienda-backend:latest
             sudo docker rm -f tienda-backend || true
-            sudo docker run -d --name tienda-backend -p 3001:3001 -e DB_HOST=10.0.10.120 -e DB_USER=alumno -e DB_PASSWORD=alumno123 -e DB_NAME=tienda_perritos -e DB_PORT=5432 ${{ secrets.DOCKER_USERNAME }}/tienda-backend:latest
+            sudo docker run -d --name tienda-backend -p 3001:3001 \
+              -e DB_HOST=10.0.10.120 \
+              -e DB_USER=${{ secrets.DB_USER }} \
+              -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
+              -e DB_NAME=${{ secrets.DB_NAME }} \
+              -e DB_PORT=${{ secrets.DB_PORT }} \
+              ${{ secrets.DOCKER_USERNAME }}/tienda-backend:latest

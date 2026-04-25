@@ -4,10 +4,8 @@
 
 // Determinar la URL base de la API según el host
 // frontend/app.js
-
+// Usa ruta relativa que será redirigida por Nginx proxy
 const API_BASE = "/api/productos";
-
-// Ejemplo: const API_BASE = "http://10.0.2.30:3001/api/productos";
 
 
 let editandoId = null;

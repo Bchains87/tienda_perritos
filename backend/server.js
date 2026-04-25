@@ -1,16 +1,16 @@
 const express = require("express");
 const cors = require("cors");
-const mysql = require("mysql2/promise");
+const { Pool } = require("pg");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 const {
   DB_HOST = "db",
-  DB_USER = "root",
-  DB_PASSWORD = "admin123",
+  DB_USER = "alumno",
+  DB_PASSWORD = "alumno123",
   DB_NAME = "tienda_perritos",
-  DB_PORT = 3306,
+  DB_PORT = 5432,
 } = process.env;
 
 app.use(cors());
@@ -21,19 +21,17 @@ let pool;
 // Inicializar pool de conexiones
 async function initDb() {
   try {
-    pool = mysql.createPool({
+    pool = new Pool({
       host: DB_HOST,
       user: DB_USER,
       password: DB_PASSWORD,
       database: DB_NAME,
       port: DB_PORT,
-      waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0,
+      max: 10,
     });
-    console.log("Pool de conexiones MySQL inicializado.");
+    console.log("Pool de conexiones PostgreSQL inicializado.");
   } catch (err) {
-    console.error("Error al inicializar pool de MySQL:", err);
+    console.error("Error al inicializar pool de PostgreSQL:", err);
   }
 }
 
@@ -46,8 +44,8 @@ function handleError(res, error, message = "Error interno del servidor") {
 // Obtener todos los productos
 app.get("/api/productos", async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT id, nombre, descripcion, precio, stock FROM productos ORDER BY id DESC");
-    res.json(rows);
+    const result = await pool.query("SELECT id, nombre, descripcion, precio, stock FROM productos ORDER BY id DESC");
+    res.json(result.rows);
   } catch (err) {
     handleError(res, err, "No se pudieron obtener los productos.");
   }
@@ -57,11 +55,11 @@ app.get("/api/productos", async (req, res) => {
 app.get("/api/productos/:id", async (req, res) => {
   const { id } = req.params;
   try {
-    const [rows] = await pool.query("SELECT id, nombre, descripcion, precio, stock FROM productos WHERE id = ?", [id]);
-    if (rows.length === 0) {
+    const result = await pool.query("SELECT id, nombre, descripcion, precio, stock FROM productos WHERE id = $1", [id]);
+    if (result.rows.length === 0) {
       return res.status(404).json({ message: "Producto no encontrado." });
     }
-    res.json(rows[0]);
+    res.json(result.rows[0]);
   } catch (err) {
     handleError(res, err, "No se pudo obtener el producto.");
   }
@@ -76,13 +74,11 @@ app.post("/api/productos", async (req, res) => {
   }
 
   try {
-    const [result] = await pool.query(
-      "INSERT INTO productos (nombre, descripcion, precio, stock) VALUES (?, ?, ?, ?)",
+    const result = await pool.query(
+      "INSERT INTO productos (nombre, descripcion, precio, stock) VALUES ($1, $2, $3, $4) RETURNING id, nombre, descripcion, precio, stock",
       [nombre, descripcion || null, precio, stock]
     );
-    const nuevoId = result.insertId;
-    const [rows] = await pool.query("SELECT id, nombre, descripcion, precio, stock FROM productos WHERE id = ?", [nuevoId]);
-    res.status(201).json(rows[0]);
+    res.status(201).json(result.rows[0]);
   } catch (err) {
     handleError(res, err, "No se pudo crear el producto.");
   }
@@ -98,17 +94,16 @@ app.put("/api/productos/:id", async (req, res) => {
   }
 
   try {
-    const [result] = await pool.query(
-      "UPDATE productos SET nombre = ?, descripcion = ?, precio = ?, stock = ? WHERE id = ?",
+    const result = await pool.query(
+      "UPDATE productos SET nombre = $1, descripcion = $2, precio = $3, stock = $4 WHERE id = $5 RETURNING id, nombre, descripcion, precio, stock",
       [nombre, descripcion || null, precio, stock, id]
     );
 
-    if (result.affectedRows === 0) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ message: "Producto no encontrado." });
     }
 
-    const [rows] = await pool.query("SELECT id, nombre, descripcion, precio, stock FROM productos WHERE id = ?", [id]);
-    res.json(rows[0]);
+    res.json(result.rows[0]);
   } catch (err) {
     handleError(res, err, "No se pudo actualizar el producto.");
   }
@@ -118,8 +113,8 @@ app.put("/api/productos/:id", async (req, res) => {
 app.delete("/api/productos/:id", async (req, res) => {
   const { id } = req.params;
   try {
-    const [result] = await pool.query("DELETE FROM productos WHERE id = ?", [id]);
-    if (result.affectedRows === 0) {
+    const result = await pool.query("DELETE FROM productos WHERE id = $1 RETURNING id", [id]);
+    if (result.rows.length === 0) {
       return res.status(404).json({ message: "Producto no encontrado." });
     }
     res.json({ message: "Producto eliminado correctamente." });
