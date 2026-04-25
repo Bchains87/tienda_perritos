@@ -1,13 +1,11 @@
 name: CI/CD Pipeline Tienda Perritos
 
-# 1. ¿Cuándo se activa? (Trigger según rúbrica)
 on:
   push:
     branches:
       - deploy
 
 jobs:
-  # ETAPA 1: Construir y Publicar en Docker Hub
   build-and-push:
     runs-on: ubuntu-latest
     steps:
@@ -34,7 +32,6 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/tienda-frontend:latest
 
-  # ETAPA 2: Despliegue Automático en AWS EC2
   deploy-frontend:
     needs: build-and-push
     runs-on: ubuntu-latest
@@ -45,25 +42,43 @@ jobs:
           host: ${{ secrets.FRONTEND_HOST }}
           username: ec2-user
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          # Puerto explícito por si acaso
+          port: 22
           script: |
             sudo docker pull ${{ secrets.DOCKER_USERNAME }}/tienda-frontend:latest
             sudo docker rm -f tienda-frontend || true
-            sudo docker run -d --name tienda-frontend -p 80:80 ${{ secrets.DOCKER_USERNAME }}/tienda-frontend:latest
+            sudo docker run -d \
+              --name tienda-frontend \
+              -p 80:80 \
+              --restart unless-stopped \
+              ${{ secrets.DOCKER_USERNAME }}/tienda-frontend:latest
 
   deploy-backend:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: Actualizar EC2 Backend (App) vía Proxy
+      - name: Actualizar EC2 Backend vía proxy Frontend
         uses: appleboy/ssh-action@v1.0.3
         with:
+          # IP PRIVADA del backend (ej: 10.0.9.203)
           host: ${{ secrets.BACKEND_HOST }}
           username: ec2-user
-          key: ${{ secrets.SSH_PRIVATE_KEY }}       # <--- Esta es la llave del Backend
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
           proxy_host: ${{ secrets.FRONTEND_HOST }}
           proxy_username: ec2-user
-          proxy_key: ${{ secrets.SSH_PRIVATE_KEY }} # <--- Esta es la llave del Frontend
+          proxy_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          proxy_port: 22
           script: |
             sudo docker pull ${{ secrets.DOCKER_USERNAME }}/tienda-backend:latest
             sudo docker rm -f tienda-backend || true
-            sudo docker run -d --name tienda-backend -p 3001:3001 -e DB_HOST=10.0.10.120 -e DB_USER=alumno -e DB_PASSWORD=alumno123 -e DB_NAME=tienda_perritos -e DB_PORT=5432 ${{ secrets.DOCKER_USERNAME }}/tienda-backend:latest
+            sudo docker run -d \
+              --name tienda-backend \
+              -p 3001:3001 \
+              --restart unless-stopped \
+              -e DB_HOST=${{ secrets.DB_HOST }} \
+              -e DB_USER=alumno \
+              -e DB_PASSWORD=alumno123 \
+              -e DB_NAME=tienda_perritos \
+              -e DB_PORT=5432 \
+              ${{ secrets.DOCKER_USERNAME }}/tienda-backend:latest
