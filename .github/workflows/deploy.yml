@@ -59,12 +59,11 @@ jobs:
         with:
           host: ${{ secrets.BACKEND_HOST }}
           username: ec2-user
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          # Configuración ProxyJump (El secreto para llegar a la red privada)
+          key: ${{ secrets.SSH_PRIVATE_KEY }}       # <--- Esta es la llave del Backend
           proxy_host: ${{ secrets.FRONTEND_HOST }}
           proxy_username: ec2-user
-          proxy_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          proxy_key: ${{ secrets.SSH_PRIVATE_KEY }} # <--- Esta es la llave del Frontend
           script: |
             sudo docker pull ${{ secrets.DOCKER_USERNAME }}/tienda-backend:latest
             sudo docker rm -f tienda-backend || true
-            sudo docker run -d --name tienda-backend -p 3001:3001 -e DB_HOST=10.0.8.28 -e DB_USER=alumno -e DB_PASSWORD=alumno123 -e DB_NAME=tienda_perritos -e DB_PORT=5432 ${{ secrets.DOCKER_USERNAME }}/tienda-backend:latest
+            sudo docker run -d --name tienda-backend -p 3001:3001 -e DB_HOST=10.0.10.120 -e DB_USER=alumno -e DB_PASSWORD=alumno123 -e DB_NAME=tienda_perritos -e DB_PORT=5432 ${{ secrets.DOCKER_USERNAME }}/tienda-backend:latest
