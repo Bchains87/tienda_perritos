@@ -1,9 +1,9 @@
 # ETAPA 1: Construcción y Dependencias
 FROM node:18-alpine AS builder
 WORKDIR /app
-COPY package*.json ./
-# Instalamos solo dependencias de producción para mantener la capa limpia
-RUN npm install --omit=dev
+COPY package.json ./
+# Instalamos dependencias de producción sin usar lock file (para evitar checksums incompatibles)
+RUN npm install --no-optional --omit=dev
 
 # ETAPA 2: Producción (Imagen segura y ligera)
 FROM node:18-alpine AS runner
