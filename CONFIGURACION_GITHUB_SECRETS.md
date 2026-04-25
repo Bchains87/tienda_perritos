@@ -11,7 +11,7 @@
 
 ## 📋 Secrets Requeridos
 
-Crea estos 8 secrets con sus respectivos valores:
+Crea estos **10 secrets** con sus respectivos valores:
 
 ### 1. **DOCKER_USERNAME**
 - **Valor:** Tu usuario de Docker Hub
@@ -41,19 +41,39 @@ Crea estos 8 secrets con sus respectivos valores:
   2. Copia TODO el contenido (incluyendo `-----BEGIN PRIVATE KEY-----` y `-----END PRIVATE KEY-----`)
   3. Pégalo como valor del secret
 
-### 6. **DB_USER**
+### 6. **DB_HOST**
+- **Valor:** IP privada de tu instancia RDS o servidor BD en EC2
+- **Ejemplo:** `10.0.10.120`
+- **Cómo obtenerla:** 
+  - Si usas RDS: AWS Console → RDS → Instances → Endpoint
+  - Si es un servidor en EC2: IP privada del servidor BD
+- **Nota:** Es la IP interna (privada) de tu base de datos PostgreSQL
+
+### 7. **DB_USER**
 - **Valor:** `alumno`
 - **Nota:** Debe coincidir con el usuario PostgreSQL en docker-compose.yml
 
-### 7. **DB_PASSWORD**
+### 7. **DB_USER**
+- **Valor:** `alumno`
+- **Nota:** Debe coincidir con el usuario PostgreSQL en docker-compose.yml
+
+### 8. **DB_PASSWORD**
 - **Valor:** `alumno123`
 - **Nota:** Debe coincidir con la contraseña PostgreSQL en docker-compose.yml
 
-### 8. **DB_NAME**
+### 8. **DB_PASSWORD**
+- **Valor:** `alumno123`
+- **Nota:** Debe coincidir con la contraseña PostgreSQL en docker-compose.yml
+
+### 9. **DB_NAME**
 - **Valor:** `tienda_perritos`
 - **Nota:** Es el nombre de la base de datos
 
-### 9. **DB_PORT**
+### 9. **DB_NAME**
+- **Valor:** `tienda_perritos`
+- **Nota:** Es el nombre de la base de datos
+
+### 10. **DB_PORT**
 - **Valor:** `5432`
 - **Nota:** Puerto por defecto de PostgreSQL
 
