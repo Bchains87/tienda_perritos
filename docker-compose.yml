@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    container_name: tienda-db
+    environment:
+      POSTGRES_USER: alumno
+      POSTGRES_PASSWORD: alumno123
+      POSTGRES_DB: tienda_perritos
+    ports:
+      - "5432:5432"
+    volumes:
+      # Rúbrica: Persistencia de datos usando Named Volumes
+      - tienda_db_volume:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - tienda-network
+
+  backend:
+    build:
+      context: ./backend
+    container_name: tienda-backend
+    environment:
+      DB_HOST: db
+      DB_USER: alumno
+      DB_PASSWORD: alumno123
+      DB_NAME: tienda_perritos
+      DB_PORT: 5432
+    ports:
+      - "3001:3001"
+    depends_on:
+      - db
+    networks:
+      - tienda-network
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: tienda-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - tienda-network
+
+# Definición del Named Volume para persistencia
+volumes:
+  tienda_db_volume:
+    name: tienda_db_volume
+
+# Red interna para que los contenedores se comuniquen de forma segura
+networks:
+  tienda-network:
+    driver: bridge
